@@ -2,54 +2,75 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>VIP Auto Lotto</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIP Auto Hash Lotto</title>
   <style>
-    body{font-family:sans-serif;background:#0f172a;color:#fff;padding:15px;display:flex;justify-content:center;margin:0}
-    .box{background:#1e293b;padding:20px;border-radius:12px;width:100%;max-width:380px;margin-top:20px}
-    input,button{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:none;box-sizing:border-box;font-size:14px}
-    input{background:#0f172a;color:#fff;border:1px solid #334155}
-    button{background:#10b981;color:#fff;font-weight:bold;cursor:pointer}
-    .stop{background:#ef4444;display:none}
-    .logs{background:#020617;padding:10px;border-radius:8px;height:200px;overflow-y:auto;font-size:12px;font-family:monospace;margin-top:10px;line-height:1.5}
-    .st{display:flex;justify-content:space-between;background:#0f172a;padding:10px;border-radius:8px;text-align:center;font-size:12px;margin-top:10px}
+    body { font-family: sans-serif; background: #0f172a; color: #fff; padding: 15px; display: flex; justify-content: center; margin: 0; }
+    .box { background: #1e293b; padding: 20px; border-radius: 12px; width: 100%; max-width: 380px; margin-top: 10px; box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
+    input, button { width: 100%; padding: 11px; margin: 6px 0; border-radius: 8px; border: none; box-sizing: border-box; font-size: 14px; }
+    input { background: #0f172a; color: #fff; border: 1px solid #334155; }
+    .row { display: flex; gap: 8px; }
+    .row input { width: 50%; }
+    button { background: #10b981; color: #fff; font-weight: bold; cursor: pointer; font-size: 15px; margin-top: 10px; }
+    .stop { background: #ef4444; display: none; }
+    .logs { background: #020617; padding: 10px; border-radius: 8px; height: 190px; overflow-y: auto; font-size: 12px; font-family: monospace; margin-top: 10px; line-height: 1.5; }
+    .st { display: flex; justify-content: space-between; background: #0f172a; padding: 10px; border-radius: 8px; text-align: center; font-size: 12px; margin-top: 8px; }
+    .pnl-box { background: #0f172a; padding: 8px; border-radius: 8px; text-align: center; margin-top: 8px; font-size: 13px; border: 1px solid #334155; }
   </style>
 </head>
 <body>
   <div class="box">
-    <h3 style="text-align:center;color:#38bdf8;margin-top:0">AUTO HASH LOTTO VIP</h3>
-    <input id="key" placeholder="Nhập Key bản quyền">
+    <h3 style="text-align:center;color:#38bdf8;margin-top:0;margin-bottom:10px">AUTO HASH LOTTO VIP</h3>
+    <input id="key" placeholder="Nhập Key bản quyền (VD: VIP-47WL6Q-1D)">
     <input id="uid" placeholder="Nhập User ID (VD: 11374936)">
     <input id="skey" type="password" placeholder="Nhập User Secret Key">
-    <input id="bet" type="number" value="1000" placeholder="Tiền cược gốc mỗi bên">
-    <button id="bStart" onclick="run()">BẮT ĐẦU CHẠY</button>
+    <input id="bet" type="number" value="1000" placeholder="Tiền cược gốc mỗi bên (BUILD)">
+    
+    <div class="row">
+      <input id="tp" type="number" placeholder="Chốt lời (VD: 5000)">
+      <input id="sl" type="number" placeholder="Cắt lỗ (VD: 20000)">
+    </div>
+
+    <button id="bStart" onclick="run()">BẮT ĐẦU CHẠY BOT</button>
     <button id="bStop" class="stop" onclick="stop()">DỪNG BOT</button>
+
+    <div class="pnl-box">
+      Lợi nhuận phiên này: <b id="pnl" style="color:#4ade80">0 BUILD</b>
+    </div>
+
     <div class="st">
       <div>Chuỗi Giữa<br><b id="c0" style="color:#facc15;font-size:15px">0</b></div>
       <div>3 Giữa<br><b id="c3" style="font-size:15px">0</b></div>
       <div>4 Giữa<br><b id="c4" style="font-size:15px">0</b></div>
       <div>5 Giữa<br><b id="c5" style="font-size:15px">0</b></div>
     </div>
-    <div class="logs" id="lg">Sẵn sàng...</div>
+    <div class="logs" id="lg">Sẵn sàng khởi động...</div>
   </div>
 
   <script>
-    // Đường link máy chủ kiểm tra Key của bạn
     const API_SERVER = "https://workers.dev";
+    
+    let tm = null, lastId = null, bSet = new Set(), cg = 0, curBet = 0, inCyc = false, n3 = 0, n4 = 0, n5 = 0;
+    let totalProfit = 0, lastPlacedBet = 0;
 
-    let tm=null, lastId=null, bSet=new Set(), cg=0, curBet=0, inCyc=false, n3=0, n4=0, n5=0;
-
-    function log(m, c="#fff") {
+    function log(m, c = "#fff") {
       const l = document.getElementById("lg");
       l.innerHTML += '<div style="color:' + c + '">' + m + '</div>';
       l.scrollTop = l.scrollHeight;
     }
 
-    function stop() {
+    function updatePnlUI() {
+      const el = document.getElementById("pnl");
+      el.innerText = (totalProfit >= 0 ? "+" : "") + totalProfit.toFixed(0) + " BUILD";
+      el.style.color = totalProfit >= 0 ? "#4ade80" : "#f87171";
+    }
+
+    function stop(reason = "Đã dừng Bot.") {
       clearInterval(tm);
+      tm = null;
       document.getElementById("bStart").style.display = "block";
       document.getElementById("bStop").style.display = "none";
-      log("Đã dừng Bot.", "#facc15");
+      log("[HỆ THỐNG] " + reason, "#facc15");
     }
 
     async function run() {
@@ -57,14 +78,22 @@
       const uid = document.getElementById("uid").value.trim();
       const skey = document.getElementById("skey").value.trim();
       const base = parseFloat(document.getElementById("bet").value);
+      const takeProfit = parseFloat(document.getElementById("tp").value) || 0;
+      const stopLoss = parseFloat(document.getElementById("sl").value) || 0;
 
-      if (!key || !uid || !skey || base <= 0) return alert("Vui lòng nhập đủ thông tin!");
+      if (!key || !uid || !skey || base <= 0) return alert("Vui lòng nhập đầy đủ thông tin!");
 
       curBet = base;
+      totalProfit = 0;
+      lastPlacedBet = 0;
+      inCyc = false;
+      cg = 0;
+      updatePnlUI();
+
       document.getElementById("bStart").style.display = "none";
       document.getElementById("bStop").style.display = "block";
       document.getElementById("lg").innerHTML = "";
-      log("Đang kết nối máy chủ kiểm tra Key...", "#38bdf8");
+      log("[*] Đang kết nối máy chủ...", "#38bdf8");
 
       const loop = async () => {
         try {
@@ -76,8 +105,9 @@
           const j = await r.json();
           if (!j.success) {
             alert(j.msg);
-            return stop();
+            return stop(j.msg);
           }
+
           const d = j.data?.data;
           if (!d) return;
 
@@ -91,37 +121,71 @@
               if (cg === 3) n3++;
               if (cg === 4) n4++;
               if (cg === 5) n5++;
-              if (inCyc) {
+              
+              if (inCyc && lastPlacedBet > 0) {
+                totalProfit -= (lastPlacedBet * 2);
+                updatePnlUI();
+                
+                if (stopLoss > 0 && totalProfit <= -stopLoss) {
+                  alert("Đã chạm giới hạn Cắt lỗ (-" + stopLoss + " BUILD)! Bot tự động dừng.");
+                  return stop("Chạm mốc Cắt lỗ!");
+                }
+
                 curBet *= 10;
-                log("[THUA] Gấp x10 lên: " + curBet, "#f87171");
+                log("[THUA] Gấp x10 lên " + curBet + " BUILD/bên!", "#f87171");
               }
             } else {
-              if (inCyc) log("[THẮNG] Nổ " + t + "! Reset vốn.", "#4ade80");
+              if (inCyc && lastPlacedBet > 0) {
+                const netWin = (lastPlacedBet * 2.45) - (lastPlacedBet * 2);
+                totalProfit += netWin;
+                updatePnlUI();
+                log("[THẮNG] Nổ " + t + "! Lãi tay này: +" + netWin.toFixed(0) + " BUILD.", "#4ade80");
+
+                if (takeProfit > 0 && totalProfit >= takeProfit) {
+                  alert("Chúc mừng! Đã đạt mục tiêu Chốt lời (+" + totalProfit.toFixed(0) + " BUILD). Bot tự động dừng.");
+                  return stop("Đạt mục tiêu Chốt lời!");
+                }
+              }
               cg = 0;
               curBet = base;
               inCyc = false;
+              lastPlacedBet = 0;
             }
 
             document.getElementById("c0").innerText = cg;
             document.getElementById("c3").innerText = n3;
             document.getElementById("c4").innerText = n4;
             document.getElementById("c5").innerText = n5;
-            log("Kỳ #" + lastId + " -> " + s + " (" + t + ")");
+            log("Kỳ #" + lastId + " | [" + d.last_issue_lucky_code.join(",") + "] -> " + s + " (" + t + ")");
 
             if (cg >= 3 && !bSet.has(d.issue_id)) {
+              if (stopLoss > 0 && (totalProfit - curBet * 2) < -stopLoss) {
+                alert("Lệnh cược tiếp theo vượt quá mức Cắt lỗ đã cài đặt! Bot tự dừng để bảo toàn vốn.");
+                return stop("Vượt ngưỡng Cắt lỗ!");
+              }
+
               bSet.add(d.issue_id);
               inCyc = true;
-              log("[CƯỢC] Kỳ #" + d.issue_id + ": " + curBet + "/bên", "#38bdf8");
+              log("[CƯỢC] Kỳ #" + d.issue_id + ": " + curBet + " BUILD/bên...", "#38bdf8");
+
               const br = await fetch(API_SERVER, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ key, uid, skey, action: "bet", issueId: d.issue_id, betAmount: curBet })
               });
               const bj = await br.json();
-              log(bj.data?.code === 0 ? "[OK] Khớp lệnh thành công!" : "[LỖI] " + bj.data?.msg, bj.data?.code === 0 ? "#4ade80" : "#f87171");
+              if (bj.data?.code === 0) {
+                lastPlacedBet = curBet;
+                log("[OK] Khớp lệnh thành công!", "#4ade80");
+              } else {
+                lastPlacedBet = 0;
+                log("[LỖI] " + bj.data?.msg, "#f87171");
+              }
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          log("[Cảnh báo] Mạng trễ, thử lại sau 3s...", "#94a3b8");
+        }
       };
 
       await loop();
