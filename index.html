@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VIP Auto Lotto</title>
+  <style>
+    body{font-family:sans-serif;background:#0f172a;color:#fff;padding:15px;display:flex;justify-content:center;margin:0}
+    .box{background:#1e293b;padding:20px;border-radius:12px;width:100%;max-width:380px;margin-top:20px}
+    input,button{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:none;box-sizing:border-box;font-size:14px}
+    input{background:#0f172a;color:#fff;border:1px solid #334155}
+    button{background:#10b981;color:#fff;font-weight:bold;cursor:pointer}
+    .stop{background:#ef4444;display:none}
+    .logs{background:#020617;padding:10px;border-radius:8px;height:200px;overflow-y:auto;font-size:12px;font-family:monospace;margin-top:10px;line-height:1.5}
+    .st{display:flex;justify-content:space-between;background:#0f172a;padding:10px;border-radius:8px;text-align:center;font-size:12px;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h3 style="text-align:center;color:#38bdf8;margin-top:0">AUTO HASH LOTTO VIP</h3>
+    <input id="key" placeholder="Nhập Key bản quyền">
+    <input id="uid" placeholder="Nhập User ID (VD: 11374936)">
+    <input id="skey" type="password" placeholder="Nhập User Secret Key">
+    <input id="bet" type="number" value="1000" placeholder="Tiền cược gốc mỗi bên">
+    <button id="bStart" onclick="run()">BẮT ĐẦU CHẠY</button>
+    <button id="bStop" class="stop" onclick="stop()">DỪNG BOT</button>
+    <div class="st">
+      <div>Chuỗi Giữa<br><b id="c0" style="color:#facc15;font-size:15px">0</b></div>
+      <div>3 Giữa<br><b id="c3" style="font-size:15px">0</b></div>
+      <div>4 Giữa<br><b id="c4" style="font-size:15px">0</b></div>
+      <div>5 Giữa<br><b id="c5" style="font-size:15px">0</b></div>
+    </div>
+    <div class="logs" id="lg">Sẵn sàng...</div>
+  </div>
+
+  <script>
+    // Đường link máy chủ kiểm tra Key của bạn
+    const API_SERVER = "https://workers.dev";
+
+    let tm=null, lastId=null, bSet=new Set(), cg=0, curBet=0, inCyc=false, n3=0, n4=0, n5=0;
+
+    function log(m, c="#fff") {
+      const l = document.getElementById("lg");
+      l.innerHTML += '<div style="color:' + c + '">' + m + '</div>';
+      l.scrollTop = l.scrollHeight;
+    }
+
+    function stop() {
+      clearInterval(tm);
+      document.getElementById("bStart").style.display = "block";
+      document.getElementById("bStop").style.display = "none";
+      log("Đã dừng Bot.", "#facc15");
+    }
+
+    async function run() {
+      const key = document.getElementById("key").value.trim();
+      const uid = document.getElementById("uid").value.trim();
+      const skey = document.getElementById("skey").value.trim();
+      const base = parseFloat(document.getElementById("bet").value);
+
+      if (!key || !uid || !skey || base <= 0) return alert("Vui lòng nhập đủ thông tin!");
+
+      curBet = base;
+      document.getElementById("bStart").style.display = "none";
+      document.getElementById("bStop").style.display = "block";
+      document.getElementById("lg").innerHTML = "";
+      log("Đang kết nối máy chủ kiểm tra Key...", "#38bdf8");
+
+      const loop = async () => {
+        try {
+          const r = await fetch(API_SERVER, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key, uid, skey, action: "scan" })
+          });
+          const j = await r.json();
+          if (!j.success) {
+            alert(j.msg);
+            return stop();
+          }
+          const d = j.data?.data;
+          if (!d) return;
+
+          if (d.last_issue_id !== lastId && d.last_issue_lucky_code?.length === 3) {
+            lastId = d.last_issue_id;
+            const s = d.last_issue_lucky_code.reduce((a, b) => a + b, 0);
+            const t = s <= 9 ? "NHO" : (s <= 11 ? "GIUA" : "TO");
+
+            if (t === "GIUA") {
+              cg++;
+              if (cg === 3) n3++;
+              if (cg === 4) n4++;
+              if (cg === 5) n5++;
+              if (inCyc) {
+                curBet *= 10;
+                log("[THUA] Gấp x10 lên: " + curBet, "#f87171");
+              }
+            } else {
+              if (inCyc) log("[THẮNG] Nổ " + t + "! Reset vốn.", "#4ade80");
+              cg = 0;
+              curBet = base;
+              inCyc = false;
+            }
+
+            document.getElementById("c0").innerText = cg;
+            document.getElementById("c3").innerText = n3;
+            document.getElementById("c4").innerText = n4;
+            document.getElementById("c5").innerText = n5;
+            log("Kỳ #" + lastId + " -> " + s + " (" + t + ")");
+
+            if (cg >= 3 && !bSet.has(d.issue_id)) {
+              bSet.add(d.issue_id);
+              inCyc = true;
+              log("[CƯỢC] Kỳ #" + d.issue_id + ": " + curBet + "/bên", "#38bdf8");
+              const br = await fetch(API_SERVER, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key, uid, skey, action: "bet", issueId: d.issue_id, betAmount: curBet })
+              });
+              const bj = await br.json();
+              log(bj.data?.code === 0 ? "[OK] Khớp lệnh thành công!" : "[LỖI] " + bj.data?.msg, bj.data?.code === 0 ? "#4ade80" : "#f87171");
+            }
+          }
+        } catch (e) {}
+      };
+
+      await loop();
+      tm = setInterval(loop, 3000);
+    }
+  </script>
+</body>
+</html>
